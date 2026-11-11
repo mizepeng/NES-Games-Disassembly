@@ -519,14 +519,63 @@ CRT 上被眼睛积分成混合色）：`palette = tbl_E003[((frame<<2) + type) 
 
 ---
 
-## 10. 尚未分析的部分
+## 10. 关卡开场与灰幕动画
+
+### 开场流程（`$C159` 起）
+
+```
+close_grey_curtain          ; 灰幕合拢，16 帧
+print_word_stage_and_number ; 在合拢的灰幕上写 "STAGE N"
+  └ 循环等按键：A/B 改关号（原版的隐藏选关）、Start 开始；
+    ram_004C_flag 非 0 时（正常推关）直接跳过等待
+播 sfx_stage_load
+create_default_stage_field / draw_stage / draw_default_base  ; 在幕后把战场画好
+open_grey_curtain           ; 开幕，16 帧
+prepare_tanks_and_spawn_players
+```
+
+要点：**幕布是灰色不是黑色**（灰 tile `$11`，调色板 `con_bg_pal_04`），
+`STAGE N` 是**黑字写在灰幕上**；战场是在幕布遮挡期间画好的，开幕即成品。
+
+### 幕布绘制（`sub_CC5C_draw_curtain`）
+
+一次调用画**一整行 32 个 tile**，行号由 Y 传入。`ram_0063_t01_grey_tile_flag`
+非 0 时填灰 tile（合幕），为 0 时填该行的真实内容（开幕，等于把战场"擦"出来）。
+
+**合拢** `sub_CC90` @ `$CC90`：
+
+```
+counter = 0
+每帧： draw_curtain(counter)        ; 上边缘往下推进
+      draw_curtain($1D - counter)  ; 下边缘往上推进（$1D = 29 = 末行）
+      counter++
+直到 counter == $10 (16)
+```
+
+**展开** `sub_CCB2` @ `$CCB2`：`counter` 从 `$0F` 递减到下溢（16 帧），
+同样每帧两行，方向相反——从中间往上下擦开。
+
+所以两段动画都是 **16 帧 ≈ 266ms、每帧上下各推进一行**，
+幕布边缘是一格一格跳的阶梯，不是平滑滑动。
+
+### 版式坐标
+
+| 元素 | PPU 地址 | 行 / 列（32×30） |
+|---|---|---|
+| `STAGE  ` + 关号 | `$21CC` | 行 14、列 12 起（屏幕正中） |
+| 关卡旗帜（两半） | `$22FD` / `$231D` | 行 23-24、列 29（右栏底部） |
+
+右栏自上而下为：剩余敌军图标网格 → 1P/2P 生命 → 旗帜与关号。
+
+---
+
+## 11. 尚未分析的部分
 
 以下机制还没读过源码，需要时再查：
 
 - 子弹与子弹相撞判定：`$E910` 附近
 - 音效/音乐驱动（APU 通道分配、各音效的频率与包络、开场音乐旋律）
 - 标题画面与菜单（NAMCOT logo、光标交互、CONSTRUCTION 模式）
-- 关卡开场的幕布动画细节（`sub_CC90_close_grey_curtain` 已知 16 帧上下对开，未读展开逻辑）
 - 玩家坦克的完整状态机（与敌军 `$A0`-`$F0` 对应的玩家分支）
 - 双人模式的 BONUS 1000 分判定条件
 
